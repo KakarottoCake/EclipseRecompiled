@@ -168,6 +168,7 @@ impl ControllerProfile {
         let sb = &sm.buttons;
 
         let controller_type = match self.controller_type.as_str() {
+            "GameCubeAdapter" => ControllerType::GameCubeAdapter,
             "Xbox" => ControllerType::Xbox,
             "PlayStation" => ControllerType::PlayStation,
             "SwitchPro" => ControllerType::SwitchPro,

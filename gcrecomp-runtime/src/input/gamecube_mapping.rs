@@ -76,6 +76,7 @@ impl GameCubeMapping {
         controller_info: &crate::input::backends::ControllerInfo,
     ) -> Result<Self> {
         match controller_info.controller_type {
+            ControllerType::GameCubeAdapter => Ok(Self::gamecube_adapter_default()),
             ControllerType::Xbox => Ok(Self::xbox_default()),
             ControllerType::PlayStation => Ok(Self::playstation_default()),
             ControllerType::SwitchPro => Ok(Self::switch_pro_default()),
@@ -87,18 +88,20 @@ impl GameCubeMapping {
         Self {
             controller_type: ControllerType::Xbox,
             button_mappings: ButtonMappings {
-                a: ButtonMapping::Button(0),        // A button
-                b: ButtonMapping::Button(1),        // B button
-                x: ButtonMapping::Button(2),        // X button
-                y: ButtonMapping::Button(3),        // Y button
+                // Preserve the GameCube face-button positions: south is A,
+                // west is B, east is X, and north is Y.
+                a: ButtonMapping::Button(0),
+                b: ButtonMapping::Button(2),
+                x: ButtonMapping::Button(1),
+                y: ButtonMapping::Button(3),
                 start: ButtonMapping::Button(6),    // Menu button
                 d_up: ButtonMapping::Button(11),    // D-pad up
                 d_down: ButtonMapping::Button(12),  // D-pad down
                 d_left: ButtonMapping::Button(13),  // D-pad left
                 d_right: ButtonMapping::Button(14), // D-pad right
-                l: ButtonMapping::Trigger(4, 0.3),  // Left trigger
-                r: ButtonMapping::Trigger(5, 0.3),  // Right trigger
-                z: ButtonMapping::Button(4),        // Left bumper
+                l: ButtonMapping::Trigger(0, 0.3),
+                r: ButtonMapping::Trigger(1, 0.3),
+                z: ButtonMapping::Button(10), // Right bumper, above R
             },
             stick_mappings: StickMappings {
                 left_stick: AxisMapping {
@@ -115,8 +118,8 @@ impl GameCubeMapping {
                 },
             },
             trigger_mappings: TriggerMappings {
-                left_trigger: 4,
-                right_trigger: 5,
+                left_trigger: 0,
+                right_trigger: 1,
             },
             dead_zones: DeadZones {
                 left_stick: 0.15,
@@ -132,10 +135,8 @@ impl GameCubeMapping {
     }
 
     pub fn playstation_default() -> Self {
-        // Similar to Xbox but with different button indices
         let mut xbox = Self::xbox_default();
         xbox.controller_type = ControllerType::PlayStation;
-        xbox.button_mappings.start = ButtonMapping::Button(9); // Options button
         xbox
     }
 
@@ -147,7 +148,57 @@ impl GameCubeMapping {
     }
 
     pub fn generic_default() -> Self {
-        Self::xbox_default()
+        let mut mapping = Self::xbox_default();
+        mapping.controller_type = ControllerType::Generic;
+        mapping
+    }
+
+    pub fn gamecube_adapter_default() -> Self {
+        Self {
+            controller_type: ControllerType::GameCubeAdapter,
+            button_mappings: ButtonMappings {
+                a: ButtonMapping::Button(0),
+                b: ButtonMapping::Button(1),
+                x: ButtonMapping::Button(2),
+                y: ButtonMapping::Button(3),
+                start: ButtonMapping::Button(4),
+                d_up: ButtonMapping::Button(5),
+                d_down: ButtonMapping::Button(6),
+                d_left: ButtonMapping::Button(7),
+                d_right: ButtonMapping::Button(8),
+                l: ButtonMapping::Button(9),
+                r: ButtonMapping::Button(10),
+                z: ButtonMapping::Button(11),
+            },
+            stick_mappings: StickMappings {
+                left_stick: AxisMapping {
+                    x_axis: 0,
+                    y_axis: 1,
+                    invert_x: false,
+                    invert_y: false,
+                },
+                right_stick: AxisMapping {
+                    x_axis: 2,
+                    y_axis: 3,
+                    invert_x: false,
+                    invert_y: false,
+                },
+            },
+            trigger_mappings: TriggerMappings {
+                left_trigger: 0,
+                right_trigger: 1,
+            },
+            dead_zones: DeadZones {
+                left_stick: 0.08,
+                right_stick: 0.08,
+                left_trigger: 0.02,
+                right_trigger: 0.02,
+            },
+            sensitivity: Sensitivity {
+                left_stick: 1.0,
+                right_stick: 1.0,
+            },
+        }
     }
 
     pub fn map_to_gamecube(&self, input: &RawInput) -> GameCubeInput {
@@ -235,21 +286,23 @@ impl GameCubeMapping {
         let mut x = if axis_mapping.invert_x { -x } else { x };
         let mut y = if axis_mapping.invert_y { -y } else { y };
 
-        // Apply dead zone
+        // Apply a radial dead zone and rescale the remaining range so movement
+        // starts smoothly at zero instead of jumping at the threshold.
         let magnitude = (x * x + y * y).sqrt();
         if magnitude < *dead_zone {
             return (0.0, 0.0);
         }
 
-        // Normalize and scale
-        if magnitude > 1.0 {
-            x /= magnitude;
-            y /= magnitude;
-        }
+        let unit_x = x / magnitude;
+        let unit_y = y / magnitude;
+        let scaled_magnitude =
+            ((magnitude.min(1.0) - *dead_zone) / (1.0 - *dead_zone)).clamp(0.0, 1.0);
+        x = unit_x * scaled_magnitude;
+        y = unit_y * scaled_magnitude;
 
         // Apply sensitivity
-        x *= sensitivity;
-        y *= sensitivity;
+        x = (x * sensitivity).clamp(-1.0, 1.0);
+        y = (y * sensitivity).clamp(-1.0, 1.0);
 
         (x, y)
     }
@@ -262,6 +315,43 @@ impl GameCubeMapping {
             // Normalize from dead_zone to 1.0
             (value - dead_zone) / (1.0 - dead_zone)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn raw() -> RawInput {
+        RawInput {
+            buttons: vec![false; 16],
+            axes: vec![0.0; 4],
+            triggers: vec![0.0; 2],
+            hat: None,
+        }
+    }
+
+    #[test]
+    fn generic_layout_preserves_gamecube_button_positions() {
+        let mapping = GameCubeMapping::generic_default();
+        let mut input = raw();
+        input.buttons[2] = true; // west face button
+        input.buttons[1] = true; // east face button
+        let mapped = mapping.map_to_gamecube(&input);
+        assert!(mapped.buttons.b);
+        assert!(mapped.buttons.x);
+    }
+
+    #[test]
+    fn generic_triggers_are_analog_and_digital() {
+        let mapping = GameCubeMapping::generic_default();
+        let mut input = raw();
+        input.triggers = vec![0.5, 0.75];
+        let mapped = mapping.map_to_gamecube(&input);
+        assert!(mapped.buttons.l);
+        assert!(mapped.buttons.r);
+        assert!(mapped.left_trigger > 0.4);
+        assert!(mapped.right_trigger > 0.7);
     }
 }
 

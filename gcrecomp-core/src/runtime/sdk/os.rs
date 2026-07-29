@@ -45,6 +45,23 @@ impl OsState {
             }
         }
     }
+
+    /// Initialize the virtual DVD from an external archive so a large game
+    /// image does not become part of the executable.
+    pub fn init_dvd_file(&mut self, path: impl AsRef<std::path::Path>) {
+        let path = path.as_ref();
+        match VirtualFilesystem::open(path) {
+            Ok(vfs) => {
+                info!("DVD filesystem initialized from {}.", path.display());
+                self.dvd = Some(vfs);
+            }
+            Err(error) => warn!(
+                "Failed to initialize DVD filesystem from {}: {}",
+                path.display(),
+                error
+            ),
+        }
+    }
 }
 
 impl Default for OsState {

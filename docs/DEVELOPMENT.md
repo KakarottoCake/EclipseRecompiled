@@ -1,6 +1,7 @@
 # Development Guide
 
-This guide is for developers who want to contribute to or extend GCRecomp.
+This guide is for developers who want to contribute to or extend Eclipse
+Recompiled and its GCRecomp-based runtime.
 
 ## Development Setup
 
@@ -16,8 +17,8 @@ This guide is for developers who want to contribute to or extend GCRecomp.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/GCRecomp.git
-cd GCRecomp
+git clone https://github.com/KakarottoCake/EclipseRecompiled.git
+cd EclipseRecompiled
 
 # Build in development mode
 cargo build
@@ -366,4 +367,3 @@ cargo build --all --release
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
 - [PowerPC Architecture](https://en.wikipedia.org/wiki/PowerPC)
 - [GameCube Documentation](https://www.gc-forever.com/)
-

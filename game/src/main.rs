@@ -36,7 +36,11 @@ impl GameApp {
 
         // SDK init + DVD filesystem + load the DOL's real memory image into RAM.
         gcrecomp_core::runtime::sdk::os::os_init(&mut os_state, &mut memory);
-        os_state.init_dvd(assets::ARCHIVE);
+        if let Some(path) = assets::archive_path() {
+            os_state.init_dvd_file(path);
+        } else {
+            info!("No disc asset archive found; DVD filesystem disabled.");
+        }
         recompiled::load_image(&mut memory);
 
         ctx.set_register(1, 0x817F_FF00); // r1 = stack pointer (top of MEM1)
@@ -278,6 +282,24 @@ fn main() -> Result<()> {
     if game_init.exists() {
         if let Err(e) = lua_engine.execute_file(game_init) {
             log::warn!("Failed to load game scripts: {}", e);
+        }
+    }
+
+    // Host-side mods are ordinary Lua files. Load in filename order so authors
+    // can control deterministic composition with numeric prefixes.
+    let mods_dir = std::path::Path::new("mods");
+    if let Ok(entries) = std::fs::read_dir(mods_dir) {
+        let mut scripts: Vec<_> = entries
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("lua"))
+            .collect();
+        scripts.sort();
+        for script in scripts {
+            match lua_engine.execute_file(&script) {
+                Ok(()) => info!("Loaded host mod {}", script.display()),
+                Err(error) => log::warn!("Host mod {} failed: {error}", script.display()),
+            }
         }
     }
 

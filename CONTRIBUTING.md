@@ -1,6 +1,8 @@
-# Contributing to GCRecomp
+# Contributing to Eclipse Recompiled
 
-Thank you for your interest in contributing to GCRecomp! This project thrives on community collaboration to advance game preservation, recompilation tech, and Rust-based tools. We welcome contributions from everyone, regardless of experience level, to make GCRecomp better.
+Thank you for helping improve the Eclipse bring-up and its GCRecomp-based
+runtime. Please read the status and missing-runtime sections in `README.md`
+before proposing game-facing features.
 
 Before contributing, please review the [EULA](EULA.md) and ensure your work aligns with clean-room reverse engineering—no use of proprietary Nintendo materials.
 
@@ -9,19 +11,19 @@ This project adheres to the [Rust Code of Conduct](https://www.rust-lang.org/pol
 
 ## How to Contribute
 1. **Fork the Repository**: Click "Fork" on the GitHub page to create your own copy.
-2. **Clone Your Fork**: `git clone https://github.com/yourusername/GCRecomp.git`
+2. **Clone Your Fork**: `git clone https://github.com/<your-account>/EclipseRecompiled.git`
 3. **Create a Branch**: Use descriptive names, e.g., `git checkout -b feature/new-instruction-support`
 4. **Make Changes**: Follow the code quality standards below.
 5. **Test Your Changes**: Run `cargo test` and ensure all tests pass.
 6. **Commit**: Use clear messages, e.g., "Add support for new PowerPC instruction"
 7. **Push and Open a Pull Request**: Push to your fork and submit a PR to the main repo. Describe your changes, reference any issues, and explain why it's valuable.
 
-We aim to review PRs within 7 days. If your PR addresses an open issue, reference it (e.g., "Fixes #123").
+If your PR addresses an open issue, reference it (e.g., "Fixes #123").
 
 ## Areas for Contribution
 As outlined in README.md:
-- Additional instruction support (e.g., edge-case PowerPC ops)
-- Runtime improvements (e.g., SDK stubs, graphics/audio emulation)
+- PowerPC translation correctness and regression tests
+- Runtime improvements (GX, DSP, OS, DVD, PAD/SI, and Kuribo)
 - Documentation enhancements (e.g., examples, API docs)
 - Bug fixes and optimizations (e.g., memory efficiency)
 - New features from the roadmap (e.g., wgpu integration)
@@ -47,14 +49,14 @@ Other ideas: Accessibility improvements, CI/CD scripts, or community tools.
 ### Building
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/GCRecomp.git
-cd GCRecomp
+git clone https://github.com/KakarottoCake/EclipseRecompiled.git
+cd EclipseRecompiled
 
 # Build the project
 cargo build
 
 # Run tests
-cargo test
+cargo test -p gcrecomp-core -p gcrecomp-runtime
 
 # Format code
 cargo fmt
@@ -95,4 +97,3 @@ All contributors are acknowledged in README.md. By contributing, you agree to de
 If you discover a security vulnerability, please do NOT open a public issue. Instead, see [SECURITY.md](SECURITY.md) for reporting instructions.
 
 Thanks for helping preserve gaming history! 🚀
-

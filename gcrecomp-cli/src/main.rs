@@ -3,7 +3,7 @@ mod commands;
 mod output;
 
 use clap::Parser;
-use commands::{analyze_dol, build_dol, recompile_dol};
+use commands::{analyze_dol, build_dol, prepare_disc, recompile_dol};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 
@@ -27,6 +27,10 @@ enum Commands {
         /// Use ReOxide backend (default: headless CLI)
         #[arg(long)]
         use_reoxide: bool,
+
+        /// Optional `name=0xADDRESS` symbol map
+        #[arg(long)]
+        symbol_map: Option<PathBuf>,
     },
     /// Recompile a DOL file to Rust code
     Recompile {
@@ -41,6 +45,10 @@ enum Commands {
         /// Use ReOxide backend (default: headless CLI)
         #[arg(long)]
         use_reoxide: bool,
+
+        /// Optional `name=0xADDRESS` symbol map
+        #[arg(long)]
+        symbol_map: Option<PathBuf>,
     },
     /// Full pipeline: analyze, recompile, and build
     Build {
@@ -55,6 +63,24 @@ enum Commands {
         /// Use ReOxide backend (default: headless CLI)
         #[arg(long)]
         use_reoxide: bool,
+
+        /// Optional `name=0xADDRESS` symbol map
+        #[arg(long)]
+        symbol_map: Option<PathBuf>,
+    },
+    /// Extract the DOL and build a local disc-asset archive from an ISO
+    Prepare {
+        /// Legally dumped GameCube ISO or GCM image
+        #[arg(short, long)]
+        disc_image: PathBuf,
+
+        /// Directory for private extracted files
+        #[arg(short, long, default_value = "eclipse")]
+        output_dir: PathBuf,
+
+        /// Extract only main.dol and skip the disc asset archive
+        #[arg(long)]
+        no_assets: bool,
     },
 }
 
@@ -67,28 +93,50 @@ fn main() -> anyhow::Result<()> {
         Commands::Analyze {
             dol_file,
             use_reoxide,
+            symbol_map,
         } => {
             let pb = create_progress_bar("Analyzing DOL file...");
-            analyze_dol(&dol_file, use_reoxide)?;
+            analyze_dol(&dol_file, symbol_map.as_deref(), use_reoxide)?;
             pb.finish_with_message("Analysis complete");
         }
         Commands::Recompile {
             dol_file,
             output_dir,
             use_reoxide,
+            symbol_map,
         } => {
             let pb = create_progress_bar("Recompiling DOL file...");
-            recompile_dol(&dol_file, output_dir.as_deref(), use_reoxide)?;
+            recompile_dol(
+                &dol_file,
+                output_dir.as_deref(),
+                symbol_map.as_deref(),
+                use_reoxide,
+            )?;
             pb.finish_with_message("Recompilation complete");
         }
         Commands::Build {
             dol_file,
             output_dir,
             use_reoxide,
+            symbol_map,
         } => {
             let pb = create_progress_bar("Building recompiled game...");
-            build_dol(&dol_file, output_dir.as_deref(), use_reoxide)?;
+            build_dol(
+                &dol_file,
+                output_dir.as_deref(),
+                symbol_map.as_deref(),
+                use_reoxide,
+            )?;
             pb.finish_with_message("Build complete");
+        }
+        Commands::Prepare {
+            disc_image,
+            output_dir,
+            no_assets,
+        } => {
+            let pb = create_progress_bar("Preparing private game files...");
+            prepare_disc(&disc_image, &output_dir, !no_assets)?;
+            pb.finish_with_message("Game files prepared");
         }
     }
 

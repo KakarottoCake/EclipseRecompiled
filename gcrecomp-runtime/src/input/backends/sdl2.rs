@@ -30,6 +30,10 @@ impl SDL2Backend {
 }
 
 impl Backend for SDL2Backend {
+    fn name(&self) -> &'static str {
+        "SDL"
+    }
+
     fn update(&mut self) -> Result<()> {
         // SDL2 handles events automatically
         Ok(())
@@ -100,8 +104,8 @@ impl Backend for SDL2Backend {
             axes.push(controller.axis(Axis::RightY) as f32 / 32768.0);
 
             // Read triggers
-            triggers.push(controller.axis(Axis::TriggerLeft) as f32 / 32768.0);
-            triggers.push(controller.axis(Axis::TriggerRight) as f32 / 32768.0);
+            triggers.push(normalize_trigger(controller.axis(Axis::TriggerLeft)));
+            triggers.push(normalize_trigger(controller.axis(Axis::TriggerRight)));
 
             Ok(RawInput {
                 buttons,
@@ -113,6 +117,10 @@ impl Backend for SDL2Backend {
             anyhow::bail!("Controller not found: {}", controller_id);
         }
     }
+}
+
+fn normalize_trigger(value: i16) -> f32 {
+    (value as f32 / i16::MAX as f32).clamp(0.0, 1.0)
 }
 
 fn detect_controller_type(name: &str) -> ControllerType {

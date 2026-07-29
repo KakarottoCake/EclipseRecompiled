@@ -6,15 +6,16 @@ We provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1   | :x:                |
+| `main` pre-alpha | :white_check_mark: |
+| Releases         | None published     |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in GCRecomp, please **do not** open a public issue. Instead, please report it privately using one of the following methods:
+If you discover a security vulnerability in Eclipse Recompiled, please **do
+not** open a public issue.
 
 ### Preferred Method
-Open a [GitHub Security Advisory](https://github.com/yourusername/GCRecomp/security/advisories/new) (if you have access) or email the maintainers directly.
+Open a [GitHub Security Advisory](https://github.com/KakarottoCake/EclipseRecompiled/security/advisories/new).
 
 ### Response Time
 We aim to:
@@ -65,4 +66,3 @@ When using GCRecomp:
 We appreciate responsible disclosure and will acknowledge security researchers who help improve GCRecomp's security. Contributors will be credited in security advisories (unless they prefer to remain anonymous).
 
 Thank you for helping keep GCRecomp secure!
-

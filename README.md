@@ -1,355 +1,386 @@
-# GCRecomp
+# Eclipse Recompiled
 
-**Production-Ready Static Recompiler for GameCube Games → Rust → Native PC Executables**
+> **Experimental bring-up project — not a playable PC port yet.**
 
-[![License: CC0-1.0](https://img.shields.io/badge/License-CC0%201.0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
-[![CI](https://github.com/yourusername/GCRecomp/workflows/CI/badge.svg)](https://github.com/yourusername/GCRecomp/actions)
-[![Security](https://img.shields.io/badge/security-policy-blue.svg)](SECURITY.md)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](#current-status)
+[![CI](https://github.com/KakarottoCake/EclipseRecompiled/actions/workflows/ci.yml/badge.svg)](https://github.com/KakarottoCake/EclipseRecompiled/actions/workflows/ci.yml)
+[![License: CC0-1.0](https://img.shields.io/badge/license-CC0--1.0-lightgrey.svg)](LICENSE)
 
-**⚠️ IMPORTANT: This software is subject to an [End User License Agreement (EULA)](EULA.md). By downloading, installing, or using this software, you agree to the terms in [EULA.md](EULA.md).**
+Eclipse Recompiled is an experiment in turning **Super Mario Eclipse 1.1.0**
+into a native Windows program using
+[GameCubeRecompiled](https://github.com/KaiserGranatapfel/GameCubeRecompiled).
+The long-term goal is a version that feels natural on a PC, recognizes a real
+GameCube controller adapter, supports ordinary modern controllers, and is easy
+to modify.
 
-GCRecomp is an advanced static recompiler that translates GameCube PowerPC binaries (DOL files) into optimized Rust code, producing standalone, cross-platform executables that run natively on modern PCs without emulation overhead.
+The project can already read a legally obtained Eclipse disc image, translate
+its main program into Rust, compile a Windows executable, load its files, and
+start the host-side runtime. It **cannot reach menus or gameplay** because
+important parts of the underlying GameCube runtime are still unfinished.
 
-Inspired by the groundbreaking [N64Recomp](https://github.com/N64Recomp/N64Recomp), GCRecomp combines reverse engineering, compiler design, and modern systems programming to enable high-performance ports, game preservation, and modding capabilities.
+## Please read this first
 
-## ⚠️ IMPORTANT LEGAL DISCLAIMER – READ BEFORE USING
+- This repository contains **no game, ROM, ISO, DOL, Nintendo assets, or
+  recompiled game binary**.
+- You must provide your own legally obtained `GMSE04` Super Mario Eclipse 1.1.0
+  image.
+- Generated game code and extracted assets remain local and are ignored by Git.
+- A successful build does not mean the game is playable.
+- This project is unofficial and is not affiliated with Nintendo, the Super
+  Mario Eclipse team, or the upstream projects named below.
 
-**This tool is for educational, research, archival, and game preservation purposes only.**
+## What does “recompilation” mean?
 
-- Developed via **clean-room reverse engineering** – no Nintendo proprietary code, SDKs, leaked materials, or copyrighted assets are included or distributed.
-- **Does NOT** provide, include, or facilitate access to any GameCube games, ROMs, ISOs, DOL files, or copyrighted content.
-- Users **MUST** legally own and dump their own physical GameCube discs (using personal hardware) to process files.
-- Recompiling creates derivative works – **distributing recompiled binaries** (even modified) without permission likely infringes copyright and is prohibited.
-- Prohibited uses: Piracy, commercial exploitation, or circumventing protections beyond fair use/interoperability.
+A GameCube game contains PowerPC machine instructions. A static recompiler
+translates those instructions ahead of time into code a modern PC can run.
 
-**BY USING THIS SOFTWARE, YOU AGREE:**
-- You are solely responsible for complying with all laws (e.g., copyright, DMCA, EU directives).
-- To **indemnify and hold harmless** authors/contributors from any claims, damages, or liabilities arising from your use.
-- Software provided **"AS IS"** with **NO WARRANTY** (including noninfringement or fitness for purpose). Authors are **NOT LIABLE** for any consequences.
+That translation is only half the job. The original game also expects the
+GameCube’s graphics chip, audio processor, controllers, disc drive, operating
+system services, timing, and memory behavior. The PC runtime must provide
+working replacements for all of them.
 
-**Do not use if you disagree or cannot comply. Use at your own risk. This is not legal advice.**
+An everyday analogy:
 
-## 🎮 Nintendo's Hall of Fame for Lawsuits (aka "Don't Try This at Home")
+- The recompiler translates the game’s **language**.
+- The runtime recreates the **console the game expects to live in**.
 
-Nintendo is famously protective of its IPs — think of them as the ultimate "overprotective parent" of Mario, Zelda, and friends. They rarely go after pure preservation tools like this one (decomp/recomp projects for old consoles have been chilling untouched for years), but they **do** swing the legal hammer hard when people cross into obvious piracy territory. Here's a playful rundown of some notable takedowns:
+Eclipse’s language is now mostly translated. The recreated console is not
+complete enough for Sunshine to run.
 
-- **Yuzu Emulator (2024)**: The Switch emulator that got a bit too cozy with leaked encryption keys and enabled massive pre-release piracy (hello, millions of illegal Tears of the Kingdom downloads). Nintendo dropped a $2.4 million settlement bomb 💣 and Yuzu vanished faster than a Boo in sunlight.
-- **LoveROMs & LoveRetro (2018)**: ROM sites proudly hosting thousands of Nintendo classics for free download. Result? A whopping $12.3 million judgment  and the sites got sent to digital detention permanently.
-- **RomUniverse (2019–2021)**: Another ROM warehouse. Nintendo won $2.1 million and the owner learned the hard way that "universe" doesn't include free Nintendo games.
-- **Modded Switch Sellers (ongoing)**: Shops selling hacked consoles that bypass protections? Quick lawsuits, multimillion-dollar judgments, and websites turned into ghost towns 👻.
+## Current status
 
-Moral of the story? Nintendo sues when you **distribute games**, **bundle ROMs**, **sell bypass tools for current consoles**, or **facilitate mass piracy**. They haven't come knocking on doors of clean-room decomp/recomp projects, older-system emulators without keys, or tools that require your own legally dumped files.
+| Area | State | What that means |
+| --- | --- | --- |
+| Eclipse disc validation | Working | Recognizes the `GMSE04` 1.1.0 image and records hashes |
+| DOL extraction | Working | Extracts the game’s main PowerPC executable locally |
+| Static translation | Working, incomplete | Generates about 111 MB of Rust from the patched Eclipse DOL |
+| Native Windows build | Working | The generated crate checks and a debug host links successfully |
+| Startup | Partial | Eclipse’s recompiled entry point runs and returns |
+| Disc filesystem | Working | 473 files are available through an external, compressed archive |
+| Host Lua mods | Working | Local `.lua` files load in filename order |
+| Loose asset overrides | Working | Files under `mods/files/` can replace disc files |
+| GameCube adapter detection | Implemented | Nintendo and Mayflash adapters are handled directly through USB |
+| Modern controllers | Implemented on host | SDL maps Xbox, PlayStation, Switch, and similar controllers |
+| In-game controller input | Not finished | The host input must still be connected to Sunshine’s PAD/SI calls |
+| Graphics | Not game-ready | A Vulkan host renderer starts, but Sunshine does not produce a usable framebuffer |
+| Audio | Not game-ready | Host audio starts, but GameCube DSP behavior is incomplete |
+| Menus and gameplay | Not working | The game does not boot far enough yet |
+| Better Sunshine/Kuribo modules | Not working | Native `.kxe` module loading and relocation are not implemented |
 
-So keep it legit: use your own discs, don't share binaries, and we're all just here preserving gaming history like responsible adults. Stay safe out there, fellow preservers! 🛡️
+### Last validated local milestone
 
----
+Using Super Mario Eclipse 1.1.0:
 
-## 🚀 Current Status
+- 13,496 functions discovered;
+- 901,056 PowerPC instructions decoded;
+- 98.8% instruction translation coverage;
+- 58 core and runtime tests passing;
+- the full generated crate passes compilation checks;
+- a 353 MB debug host links;
+- Vulkan rendering, host audio, Lua, DVD, SDL, and the GameCube adapter backend
+  initialize during a smoke test.
 
-GCRecomp has evolved from a proof-of-concept to a **production-ready recompiler** with comprehensive features:
+The percentage above measures whether the recompiler emitted code for an
+instruction. It does **not** prove that every translated instruction behaves
+correctly.
 
-### ✅ Completed Features
+## What is still missing?
 
-- **Complete PowerPC Instruction Support**
-  - All integer instructions (arithmetic, logical, shift, rotate)
-  - Complete load/store instruction coverage
-  - All branch instructions (direct, indirect, conditional)
-  - Floating-point instructions (add, sub, mul, div, compare, load/store)
-  - System instructions (SPR access, cache control, synchronization)
-  - Condition register operations
+Most remaining blockers are capabilities that
+[GameCubeRecompiled](https://github.com/KaiserGranatapfel/GameCubeRecompiled)
+does not yet provide completely. Some work will be useful to every GameCube
+recomp project; other work is specific to Sunshine and Eclipse.
 
-- **Advanced Analysis Framework**
-  - Control Flow Graph (CFG) construction with loop detection
-  - Data Flow Analysis (def-use chains, live variable analysis)
-  - Type inference and recovery
-  - Function call analysis
-  - Dead code elimination
+### 1. A continuous game execution loop
 
-- **Production-Ready Code Generation**
-  - Automated Rust code generation from PowerPC instructions
-  - Register allocation framework
-  - IR (Intermediate Representation) optimization passes
-  - Code validation and error handling
+The host currently calls Eclipse’s entry point during startup. A real game must
+keep executing while the window handles frames, input, audio, interrupts, and
+timers. These systems need a reliable scheduler instead of a one-time call and
+watchdog.
 
-- **Memory-Optimized Architecture**
-  - Bit-level memory optimizations (20-30% reduction in core data structures)
-  - Efficient data structures using `SmallVec` and `BitVec`
-  - Zero-cost abstractions throughout
-  - Explicit type annotations for compiler optimization
+### 2. GameCube operating-system behavior
 
-- **Comprehensive Documentation**
-  - Full API documentation with examples
-  - Algorithm descriptions and design decisions
-  - Inline code comments explaining complex logic
+Sunshine relies on Nintendo’s GameCube OS behavior. The runtime still needs
+more complete implementations of:
 
-- **Error Handling**
-  - Zero-cost error types using `thiserror`
-  - Detailed error messages for debugging
-  - Graceful error recovery
+- threads and context switching;
+- alarms and timers;
+- interrupts;
+- message queues and synchronization;
+- cache and memory behavior;
+- exception handling.
 
-### 🔄 In Progress
+Small inaccuracies here can make the game wait forever or take the wrong code
+path.
 
-- Enhanced runtime with complete SDK stubs
-- Graphics emulation using `wgpu`
-- Audio DSP emulation
-- Input handling integration
+### 3. GX graphics support
 
-## 📋 Features
+The GameCube’s GX graphics system must be translated into modern GPU commands.
+The host can create a Vulkan window and present a framebuffer, but Sunshine
+uses substantially more GX state, vertex formats, textures, copy operations,
+and synchronization than the runtime currently handles.
 
-### Core Capabilities
+This is the largest visible blocker: until GX is sufficiently complete, there
+is no real game image to display.
 
-- **Static Recompilation**: Translates PowerPC binaries to Rust at compile time
-- **Cross-Platform**: Generates native executables for Windows, Linux, and macOS
-- **High Performance**: No emulation overhead - native code execution
-- **Modular Architecture**: Clean separation of concerns for maintainability
-- **Memory Efficient**: Aggressive optimizations reduce memory footprint by 20-30%
-- **Production Quality**: Comprehensive error handling, documentation, and testing framework
+### 4. DSP and streaming audio
 
-### Technical Highlights
+Starting a PC audio device is not the same as reproducing the GameCube audio
+processor. Sunshine and Better Sunshine Engine expect DSP tasks, mixing,
+streaming, timing, and callbacks that are still missing.
 
-- **Complete Instruction Decoder**: Supports all PowerPC instruction types
-- **Advanced Analysis**: Control flow, data flow, and type inference
-- **Optimized IR**: Intermediate representation with optimization passes
-- **Code Generation**: Automated Rust code generation with validation
-- **Runtime System**: CPU context, memory management, and SDK stubs
+### 5. Connecting controllers to the game
 
-## 🏗️ Architecture
+The host-side controller layer is implemented:
 
-### Project Structure
+- Nintendo `057e:0337` adapters;
+- Mayflash `0079:1843` adapters in Wii U mode;
+- four GameCube controller ports;
+- analog sticks and triggers;
+- rumble;
+- sensible modern-controller face-button mapping.
 
+Sunshine cannot use that data until the runtime implements and dispatches the
+GameCube `PAD` and `SI` APIs that the translated game calls.
+
+### 6. Disc, save, and asynchronous I/O behavior
+
+Basic file lookup and reading work. The game also expects asynchronous DVD
+requests, callbacks, priorities, timing, cancellation, error states, and memory
+card services. These need to behave closely enough to the original hardware.
+
+### 7. Recompiler correctness
+
+The complete generated Eclipse crate compiles, but deeper boot testing will
+almost certainly reveal translated instructions, indirect branches, register
+behavior, or function boundaries that need correction. “Compiles” and
+“matches the original console” are very different standards.
+
+### 8. Better Sunshine Engine and Kuribo support
+
+Eclipse uses
+[Better Sunshine Engine](https://github.com/DotKuribo/BetterSunshineEngine).
+Its Kuribo `.kxe` modules need a loader that understands module metadata,
+relocations, imports, exports, and lifecycle callbacks. The current host Lua
+layer is useful for PC-side experiments, but it is not a replacement for
+Kuribo.
+
+### 9. Eclipse-specific testing and fixes
+
+Once ordinary Super Mario Sunshine can boot through the runtime, Eclipse’s
+custom code, stages, assets, and engine changes must be tested individually.
+Game-specific shims may still be required.
+
+## When will this be considered ready?
+
+The project should not be called finished until it can:
+
+- boot reliably to the Eclipse title screen;
+- enter stages and sustain gameplay;
+- render correctly across common GPUs;
+- play music and sound without major timing problems;
+- use a real GameCube adapter and common modern controllers;
+- save and load safely;
+- load the Better Sunshine/Kuribo modules Eclipse depends on;
+- run without requiring copyrighted files in the repository or release;
+- provide a repeatable build process from a user-owned image.
+
+## Controller goals
+
+The intended default behavior is:
+
+- a real GameCube adapter should work with minimal setup;
+- all four adapter ports should be visible;
+- analog L/R and digital trigger clicks should both work;
+- rumble should work;
+- modern controllers should follow the physical GameCube layout:
+  south = A, west = B, east = X, north = Y, triggers = L/R, right bumper = Z;
+- advanced remapping can be added later without making the default setup
+  confusing.
+
+On Windows, an official adapter normally needs its interface exposed through
+WinUSB. The input log explains this when an adapter is visible but cannot be
+claimed.
+
+## Modding goals
+
+Eclipse is already built on
+[Better Sunshine Engine](https://github.com/DotKuribo/BetterSunshineEngine)
+and the [Super Mario Sunshine decompilation](https://github.com/doldecomp/sms).
+This project aims to preserve that mod-friendly spirit.
+
+Two early workflows exist:
+
+1. **Loose file overrides**
+
+   Put a replacement at `mods/files/<original-disc-path>`. It takes precedence
+   over the archived disc file without rebuilding the ISO.
+
+2. **Host Lua scripts**
+
+   Put `.lua` files directly in `mods/`. They load in filename order when the
+   host starts.
+
+Kuribo `.kxe` support remains a separate, unfinished requirement.
+
+## Building locally
+
+The tested setup is Windows. First builds are large and may take several
+minutes.
+
+### Requirements
+
+- Windows 10 or 11;
+- [rustup](https://rustup.rs/);
+- Python with `pip`;
+- a legally obtained Super Mario Eclipse 1.1.0 `GMSE04` image;
+- several gigabytes of free disk space.
+
+### 1. Clone and bootstrap
+
+```powershell
+git clone https://github.com/KakarottoCake/EclipseRecompiled.git
+cd EclipseRecompiled
+.\scripts\bootstrap-windows-toolchain.ps1
+git clone https://github.com/DotKuribo/BetterSunshineEngine.git ..\third_party\BetterSunshineEngine
 ```
-GCRecomp/
-├── gcrecomp-core/              # Core recompiler library
-│   ├── src/
-│   │   ├── recompiler/         # Recompilation engine
-│   │   │   ├── parser.rs       # DOL file parsing
-│   │   │   ├── decoder.rs      # PowerPC instruction decoding
-│   │   │   ├── analysis/       # Control flow, data flow, type inference
-│   │   │   ├── codegen/       # Rust code generation
-│   │   │   ├── ir/            # Intermediate representation
-│   │   │   └── pipeline.rs    # Recompilation pipeline
-│   │   └── runtime/           # Runtime system
-│   │       ├── context.rs      # CPU context (registers, state)
-│   │       ├── memory.rs       # Memory management
-│   │       └── sdk.rs          # GameCube SDK stubs
-│   └── Cargo.toml
-├── gcrecomp-runtime/           # Runtime implementation
-│   ├── src/
-│   │   ├── memory/            # Memory subsystems (RAM, VRAM, ARAM)
-│   │   ├── graphics/          # Graphics emulation
-│   │   └── input/             # Input handling
-│   └── Cargo.toml
-├── gcrecomp-cli/              # Command-line interface
-│   └── src/
-│       └── main.rs
-├── gcrecomp-ui/              # Graphical user interface (optional)
-│   └── src/
-├── game/                     # Generated game binary
-│   └── src/
-│       └── recompiled.rs     # Auto-generated Rust code
-├── scripts/                  # Automation scripts
-│   └── ghidra_export.py     # Ghidra analysis integration
-├── docs/                     # Documentation
-├── tests/                    # Test files and fixtures
-├── Cargo.toml               # Workspace configuration
-└── README.md
+
+The bootstrap script installs portable LLVM-MinGW and CMake under the parent
+workspace. It does not require Visual Studio or administrator access.
+
+### 2. Prepare your private image
+
+```powershell
+.\scripts\prepare-eclipse.ps1 -IsoPath "D:\path\to\your-eclipse.iso"
 ```
 
-### Recompilation Pipeline
+This creates ignored local files:
 
-1. **Parsing**: Parse DOL file structure and extract sections
-2. **Ghidra Analysis**: Extract function metadata, symbols, and type information
-3. **Instruction Decoding**: Decode PowerPC instructions from binary
-4. **Control Flow Analysis**: Build control flow graph (CFG)
-5. **Data Flow Analysis**: Build def-use chains and perform live variable analysis
-6. **Type Inference**: Recover type information for registers and variables
-7. **Code Generation**: Generate optimized Rust code
-8. **Validation**: Validate generated code for correctness
-9. **Compilation**: Compile to native executable
+- `eclipse/main.dol`;
+- `eclipse/manifest.json`;
+- `game/assets.bin`;
+- generated memory-image data.
 
-## 🛠️ Building and Usage
+Do not commit or distribute them.
 
-For detailed installation instructions, see [INSTALL.md](INSTALL.md).
+### 3. Generate and build
 
-### Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/GCRecomp.git
-cd GCRecomp
-
-# Build the project
-cargo build --release
-
-# Run tests
-cargo test
-
-# Build documentation
-cargo doc --open
+```powershell
+.\scripts\build-eclipse.ps1
 ```
 
-### Basic Usage
+The build uses Better Sunshine Engine’s NTSC-U symbol map when its repository
+is checked out beside this one at:
 
-```bash
-# Recompile a DOL file
-cargo run --release --bin gcrecomp-cli -- path/to/game.dol output.rs
-
-# The generated Rust code will be in output.rs
-# Compile it as part of the game crate
+```text
+../third_party/BetterSunshineEngine/maps/us.map
 ```
 
-### Advanced Usage
+You can also pass a map explicitly:
 
-See the [documentation](docs/) for detailed usage instructions, API reference, and examples.
-
-### Troubleshooting
-
-If you encounter issues, check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common problems and solutions.
-
-## 📚 Documentation
-
-- **[Installation Guide](INSTALL.md)** - Detailed installation instructions for all platforms
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Architecture Documentation](docs/ARCHITECTURE.md)** - System design and components
-- **[API Reference](docs/API.md)** - Complete API documentation
-- **[Development Guide](docs/DEVELOPMENT.md)** - Guide for contributors
-- [Comprehensive Implementation Guide](COMPREHENSIVE_IMPLEMENTATION.md)
-- [API Reference](https://docs.rs/gcrecomp-core) (when published)
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-cargo test
-
-# Run tests with output
-cargo test -- --nocapture
-
-# Run specific test suite
-cargo test --package gcrecomp-core
+```powershell
+.\scripts\build-eclipse.ps1 -SymbolMap "D:\path\to\us.map"
 ```
 
-## 🤝 Contributing
+### 4. Run the experimental host
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting pull requests.
+```powershell
+.\scripts\play-eclipse.ps1
+```
 
-### Quick Links
+Expect a bring-up window, not a playable game.
 
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Complete contribution guide
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community standards
-- **[EULA.md](EULA.md)** - End User License Agreement
-- **[SECURITY.md](SECURITY.md)** - Security policy and vulnerability reporting
+### 5. Inspect controllers
 
-### Areas for Contribution
+```powershell
+.\scripts\input-doctor.ps1
+```
 
-- Additional instruction support
-- Runtime improvements
-- Graphics/audio emulation
-- Documentation improvements
-- Bug fixes and optimizations
+The diagnostic watches for ten seconds and prints connected controllers and
+live input.
 
-### Code Quality Standards
+## Repository layout
 
-- Follow Rust best practices and idioms
-- Add comprehensive documentation
-- Include tests for new features
-- Ensure all tests pass
-- Follow the existing code style
-- Run `cargo fmt` and `cargo clippy` before submitting
+```text
+gcrecomp-core/       PowerPC decoding, translation, memory, and SDK services
+gcrecomp-runtime/    Graphics, audio, controller, and host runtime
+gcrecomp-cli/        Analyze, prepare, and recompile commands
+gcrecomp-lua/        Host-side Lua and disc archive helpers
+gcrecomp-ui/         Host configuration UI
+game/                Native host application
+recompiled/          Placeholder for generated private game code
+mods/                Host Lua examples and ignored loose asset overrides
+scripts/             Windows bootstrap, build, launch, and diagnostics
+docs/ECLIPSE_PORT.md Technical bring-up notes and validated measurements
+```
 
-## 📊 Performance
+## How to help
 
-GCRecomp is optimized for both memory efficiency and compilation speed:
+Contributions are welcome, but this is currently a low-level runtime project,
+not a content-mod project. The most useful areas are:
 
-- **Memory Optimizations**: 20-30% reduction in core data structure sizes
-- **Zero-Cost Abstractions**: No runtime overhead from abstractions
-- **Efficient Algorithms**: Optimized analysis passes and code generation
-- **Fast Compilation**: Incremental compilation support
+- GX command and shader behavior;
+- OS threads, interrupts, timers, and queues;
+- PAD/SI high-level emulation;
+- DSP and streaming audio;
+- DVD asynchronous APIs and memory cards;
+- PowerPC translation correctness tests;
+- Kuribo `.kxe` loading;
+- small, reproducible Sunshine boot tests.
 
-## 🎯 Roadmap
+Please do not open issues asking for game downloads or attach copyrighted game
+files. Reports should contain logs, addresses, hashes where appropriate, and
+the smallest reproducible technical case.
 
-### Short-Term Goals
-- Enhanced SDK stubs (GX, VI, AI, DSP)
-- Basic graphics output (minifb/softbuffer)
-- Input handling integration
-- Improved error messages
+## Frequently asked questions
 
-### Medium-Term Goals
-- Full game boot support (menu/main loop)
-- High-fidelity GX emulation with `wgpu`
-- Audio DSP emulation
-- Modding support and hooks
+### Is it playable?
 
-### Long-Term Vision
-- Multiple game compatibility
-- Community symbol databases
-- Cross-compilation back to PowerPC
-- Performance profiling and optimization tools
+No. It compiles and starts, but does not reach menus or gameplay.
 
-## 🔬 Technical Details
+### Does the repository include Super Mario Eclipse?
 
-### Memory Optimizations
+No. It contains only source code and tooling.
 
-GCRecomp uses aggressive memory optimizations:
+### Why not just use Dolphin?
 
-- **Enum Size Reduction**: `#[repr(u8)]` saves 3-7 bytes per enum instance
-- **SmallVec Usage**: Avoids heap allocation for small collections
-- **BitVec for Sets**: 1 bit per element vs 8+ bytes for hash sets
-- **Packed Structs**: Minimizes padding and alignment overhead
-- **Explicit Types**: Reduces compiler inference overhead
+Dolphin is the practical way to play Eclipse today. This project explores a
+native static-recompilation and modding path. It is research and development,
+not a Dolphin replacement at its current stage.
 
-### Analysis Algorithms
+### Does a compiling executable mean the recompiler is finished?
 
-- **Control Flow**: DFS-based CFG construction with loop detection
-- **Data Flow**: Iterative worklist algorithm for live variable analysis
-- **Type Inference**: Constraint-based type recovery
-- **Optimization**: Dead code elimination, constant propagation, CSE
+No. Compilation proves that Rust accepted the generated source. It does not
+prove that the result reproduces GameCube hardware behavior.
 
-## 📄 License
+### Will upstream GameCubeRecompiled improvements help?
 
-This project is licensed under the **CC0 1.0 Universal** (Public Domain Dedication) license.
+Yes. General GX, DSP, OS, DVD, and input improvements should benefit this
+project. Sunshine/Eclipse integration and Kuribo support will still require
+game-specific work.
 
-See [LICENSE](LICENSE) for the full license text.
+## Upstream projects and attribution
 
-## 🙏 Acknowledgments
+This repository is a development fork of
+[KaiserGranatapfel/GameCubeRecompiled](https://github.com/KaiserGranatapfel/GameCubeRecompiled)
+and preserves its Git history and CC0-1.0 license.
 
-- Inspired by [N64Recomp](https://github.com/N64Recomp/N64Recomp)
-- Built with [Rust](https://www.rust-lang.org/)
-- Uses [Ghidra](https://ghidra-sre.org/) for reverse engineering analysis
-- Community contributors and testers
+It uses or references public information from:
 
-## 🤖 AI Assistance Notice
+- [DotKuribo/BetterSunshineEngine](https://github.com/DotKuribo/BetterSunshineEngine);
+- [doldecomp/sms](https://github.com/doldecomp/sms);
+- [mstorsjo/llvm-mingw](https://github.com/mstorsjo/llvm-mingw).
 
-This project got a helpful boost from AI—specifically [Cursor](https://cursor.sh/) (the AI-powered code editor)—during development.
+Those projects are not bundled here and retain their own authorship and
+licenses.
 
-As I'm still in the early ("noob" 😂) stages of my Rust journey, Cursor was an invaluable co-pilot that helped with:
+## Legal notice
 
-- Suggesting idiomatic Rust patterns and best practices
-- Explaining tricky concepts like lifetimes, borrow checker battles, and unsafe blocks
-- Generating boilerplate and refactoring messy code
-- Writing and improving parts of the instruction decoder, analysis passes, and code generation
-- Debugging compilation errors and suggesting fixes
-- Polishing this README (yep, the fun parts too!)
+This repository is intended for interoperability, research, preservation, and
+development using legally obtained game data. It does not grant rights to
+Nintendo, Super Mario, Super Mario Sunshine, Super Mario Eclipse, or any other
+third-party material. Do not distribute disc images, extracted assets,
+generated game code, or compiled game binaries.
 
-**Important:** While Cursor wrote or heavily influenced portions of the code, all logic was reviewed, tested, and understood by me (the human). Final responsibility for correctness, design decisions, and everything in this repo is 100% mine.
-
-Similar to how many open-source projects today openly acknowledge AI assistance (e.g., in projects using GitHub Copilot, Cursor, or Claude), this notice is here for transparency. AI didn't magically build GCRecomp—it just helped a learning Rustacean level up faster.
-
-## 🔒 Security
-
-If you discover a security vulnerability, please **do not** open a public issue. Instead, please see [SECURITY.md](SECURITY.md) for reporting instructions.
-
-## 📞 Support
-
-- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/yourusername/GCRecomp/issues)
-- **Discussions**: Join discussions on [GitHub Discussions](https://github.com/yourusername/GCRecomp/discussions)
-- **Security**: Report security vulnerabilities via [SECURITY.md](SECURITY.md)
-
-## ⚖️ Legal Notice (Repeated for Emphasis)
-
-**This software is for educational, research, archival, and game preservation purposes only. Users must legally own and dump their own physical GameCube discs. The authors do not condone piracy, copyright infringement, or distribution of recompiled binaries. Use at your own risk and ensure compliance with all applicable laws.**
-
----
-
-**Made with ❤️, lots of `cargo check`, a few "why won't you borrow?!" moments, and generous help from Cursor AI. 🚀**
+See [LICENSE](LICENSE) and [EULA.md](EULA.md) for this repository’s existing
+terms.

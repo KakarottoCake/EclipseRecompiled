@@ -17,6 +17,10 @@ impl GilrsBackend {
 }
 
 impl Backend for GilrsBackend {
+    fn name(&self) -> &'static str {
+        "gilrs"
+    }
+
     fn update(&mut self) -> Result<()> {
         // Process events
         while self.gilrs.next_event().is_some() {}
@@ -51,40 +55,44 @@ impl Backend for GilrsBackend {
             .map(|(_, g)| g);
 
         if let Some(gamepad) = gamepad {
-            let mut buttons = Vec::new();
-            let mut axes = Vec::new();
-            let mut triggers = Vec::new();
-
-            // Read standard buttons explicitly (gilrs 0.10 API)
+            // Keep this canonical order in sync with the SDL backend:
+            // south, east, west, north, select, guide, start, stick clicks,
+            // shoulders, and D-pad.
             use gilrs::Button;
-            buttons.push(gamepad.is_pressed(Button::South));
-            buttons.push(gamepad.is_pressed(Button::East));
-            buttons.push(gamepad.is_pressed(Button::West));
-            buttons.push(gamepad.is_pressed(Button::North));
-            buttons.push(gamepad.is_pressed(Button::LeftTrigger));
-            buttons.push(gamepad.is_pressed(Button::RightTrigger));
-            buttons.push(gamepad.is_pressed(Button::LeftTrigger2));
-            buttons.push(gamepad.is_pressed(Button::RightTrigger2));
-            buttons.push(gamepad.is_pressed(Button::Select));
-            buttons.push(gamepad.is_pressed(Button::Start));
-            buttons.push(gamepad.is_pressed(Button::Mode));
-            buttons.push(gamepad.is_pressed(Button::LeftThumb));
-            buttons.push(gamepad.is_pressed(Button::RightThumb));
-            buttons.push(gamepad.is_pressed(Button::DPadUp));
-            buttons.push(gamepad.is_pressed(Button::DPadDown));
-            buttons.push(gamepad.is_pressed(Button::DPadLeft));
+            let buttons = vec![
+                gamepad.is_pressed(Button::South),
+                gamepad.is_pressed(Button::East),
+                gamepad.is_pressed(Button::West),
+                gamepad.is_pressed(Button::North),
+                gamepad.is_pressed(Button::Select),
+                gamepad.is_pressed(Button::Mode),
+                gamepad.is_pressed(Button::Start),
+                gamepad.is_pressed(Button::LeftThumb),
+                gamepad.is_pressed(Button::RightThumb),
+                gamepad.is_pressed(Button::LeftTrigger),
+                gamepad.is_pressed(Button::RightTrigger),
+                gamepad.is_pressed(Button::DPadUp),
+                gamepad.is_pressed(Button::DPadDown),
+                gamepad.is_pressed(Button::DPadLeft),
+                gamepad.is_pressed(Button::DPadRight),
+                false,
+            ];
 
             // Read axes explicitly
-            axes.push(gamepad.value(Axis::LeftStickX));
-            axes.push(gamepad.value(Axis::LeftStickY));
-            axes.push(gamepad.value(Axis::RightStickX));
-            axes.push(gamepad.value(Axis::RightStickY));
+            let axes = vec![
+                gamepad.value(Axis::LeftStickX),
+                gamepad.value(Axis::LeftStickY),
+                gamepad.value(Axis::RightStickX),
+                gamepad.value(Axis::RightStickY),
+            ];
 
             // Read triggers
             let left_trigger = gamepad.value(Axis::LeftZ);
             let right_trigger = gamepad.value(Axis::RightZ);
-            triggers.push((left_trigger + 1.0) / 2.0); // Normalize to 0-1
-            triggers.push((right_trigger + 1.0) / 2.0); // Normalize to 0-1
+            let triggers = vec![
+                normalize_trigger(left_trigger),
+                normalize_trigger(right_trigger),
+            ];
 
             Ok(RawInput {
                 buttons,
@@ -95,6 +103,14 @@ impl Backend for GilrsBackend {
         } else {
             anyhow::bail!("Controller not found: {}", controller_id);
         }
+    }
+}
+
+fn normalize_trigger(value: f32) -> f32 {
+    if value < 0.0 {
+        ((value + 1.0) * 0.5).clamp(0.0, 1.0)
+    } else {
+        value.clamp(0.0, 1.0)
     }
 }
 

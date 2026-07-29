@@ -77,6 +77,14 @@ impl Runtime {
         self.controller_manager.get_gamecube_input(controller_id)
     }
 
+    pub fn controllers(&self) -> Vec<&crate::input::controller::ControllerState> {
+        self.controller_manager.controllers()
+    }
+
+    pub fn set_controller_rumble(&mut self, controller_id: usize, enabled: bool) -> Result<()> {
+        self.controller_manager.set_rumble(controller_id, enabled)
+    }
+
     pub fn ram_mut(&mut self) -> &mut Ram {
         &mut self.ram
     }

@@ -27,6 +27,7 @@ use crate::recompiler::ghidra::GhidraAnalysis;
 use crate::recompiler::parser::DolFile;
 use crate::recompiler::validator::CodeValidator;
 use anyhow::Result;
+use std::path::Path;
 
 /// Recompilation pipeline orchestrator.
 ///
@@ -91,6 +92,20 @@ impl RecompilationPipeline {
     /// ```
     #[inline(never)] // Large function - don't inline
     pub fn recompile(dol_file: &DolFile, output_path: &str) -> Result<()> {
+        Self::recompile_with_symbol_map(dol_file, output_path, None)
+    }
+
+    /// Recompile a DOL, optionally using a `name=0xADDRESS` symbol map.
+    ///
+    /// Super Mario Sunshine projects already publish high-quality maps. Using
+    /// one provides stable function boundaries and names while retaining
+    /// automatically discovered functions added by a modded DOL.
+    #[inline(never)]
+    pub fn recompile_with_symbol_map(
+        dol_file: &DolFile,
+        output_path: &str,
+        symbol_map: Option<&Path>,
+    ) -> Result<()> {
         log::info!("Starting recompilation pipeline...");
 
         // Step 1: Decode instructions
@@ -101,7 +116,10 @@ impl RecompilationPipeline {
         // otherwise fall back to a naive scan of the decoded instructions so the
         // pipeline runs end-to-end with no external tool. ponytail: naive linear
         // sweep (split on `blr`), bounded; swap in Ghidra reachability for accuracy.
-        let ghidra_analysis: GhidraAnalysis = if std::env::var("GHIDRA_INSTALL_DIR").is_ok() {
+        let ghidra_analysis: GhidraAnalysis = if let Some(path) = symbol_map {
+            log::info!("Step 2: Loading symbol map {}...", path.display());
+            Self::symbol_map_function_discovery(path, dol_file.entry_point, &instructions)?
+        } else if std::env::var("GHIDRA_INSTALL_DIR").is_ok() {
             log::info!("Step 2: Running Ghidra analysis (GHIDRA_INSTALL_DIR set)...");
             GhidraAnalysis::analyze(
                 &dol_file.path,
@@ -373,6 +391,25 @@ impl RecompilationPipeline {
         Ok((facts, report))
     }
 
+    pub fn analyze_with_symbol_map(
+        dol_file: &DolFile,
+        symbol_map: Option<&Path>,
+    ) -> Result<(
+        Vec<crate::recompiler::enrich::FunctionFacts>,
+        crate::recompiler::enrich::CoverageReport,
+    )> {
+        let instructions = Self::decode_all_instructions(dol_file)?;
+        let analysis = match symbol_map {
+            Some(path) => {
+                Self::symbol_map_function_discovery(path, dol_file.entry_point, &instructions)?
+            }
+            None => Self::naive_function_discovery(dol_file.entry_point, &instructions),
+        };
+        let facts = crate::recompiler::enrich::enrich_functions(&analysis.functions, &instructions);
+        let report = crate::recompiler::enrich::CoverageReport::from_facts(&facts);
+        Ok((facts, report))
+    }
+
     // --- Discrete stage methods for Lua orchestration ---
 
     /// Stage: Load a DOL file into the pipeline context.
@@ -577,29 +614,30 @@ impl RecompilationPipeline {
         Ok(())
     }
 
-    /// Stage: Generate `game/src/assets.rs` to embed the GCFS archive.
+    /// Stage: Generate `game/src/assets.rs` to locate the private GCFS archive.
     ///
-    /// If `game/assets.bin` exists, generates an `include_bytes!` reference.
-    /// Otherwise, generates an empty stub so the game crate always compiles.
+    /// Keeping it external avoids creating a multi-gigabyte executable.
     pub fn stage_embed_assets() -> Result<()> {
         let assets_bin = std::path::Path::new("game/assets.bin");
         let assets_rs = std::path::Path::new("game/src/assets.rs");
 
-        let content = if assets_bin.exists() {
+        if assets_bin.exists() {
             let meta = std::fs::metadata(assets_bin)?;
-            log::info!(
-                "Embedding assets archive ({} bytes) via include_bytes!",
-                meta.len()
-            );
-            "/// Compressed GCFS archive of disc filesystem assets.\n\
-             pub static ARCHIVE: &[u8] = include_bytes!(\"../assets.bin\");\n"
-                .to_string()
-        } else {
-            log::info!("No assets.bin found; generating empty asset stub.");
-            "/// No disc assets available (DOL-only upload).\n\
-             pub static ARCHIVE: &[u8] = &[];\n"
-                .to_string()
-        };
+            log::info!("Using external assets archive ({} bytes)", meta.len());
+        }
+        let content = "use std::path::PathBuf;\n\n\
+            /// Find the private GCFS archive without embedding it in the executable.\n\
+            pub fn archive_path() -> Option<PathBuf> {\n\
+                if let Some(path) = std::env::var_os(\"GCRECOMP_ASSETS\").map(PathBuf::from) {\n\
+                    return path.is_file().then_some(path);\n\
+                }\n\
+                if let Ok(executable) = std::env::current_exe() {\n\
+                    let sibling = executable.with_file_name(\"assets.bin\");\n\
+                    if sibling.is_file() { return Some(sibling); }\n\
+                }\n\
+                let workspace = PathBuf::from(\"game\").join(\"assets.bin\");\n\
+                workspace.is_file().then_some(workspace)\n\
+            }\n";
 
         std::fs::write(assets_rs, content)?;
         log::info!("Generated {}", assets_rs.display());
@@ -798,6 +836,95 @@ impl RecompilationPipeline {
             decompiled_code: std::collections::HashMap::new(),
             instructions: std::collections::HashMap::new(),
         }
+    }
+
+    fn symbol_map_function_discovery(
+        path: &Path,
+        entry: u32,
+        instructions: &[DecodedInstruction],
+    ) -> Result<GhidraAnalysis> {
+        use crate::recompiler::ghidra::FunctionInfo;
+        use anyhow::Context;
+        use std::collections::{BTreeMap, HashSet};
+
+        let text = std::fs::read_to_string(path)
+            .with_context(|| format!("reading symbol map {}", path.display()))?;
+        let instruction_addresses: HashSet<u32> = instructions
+            .iter()
+            .map(|instruction| instruction.address)
+            .collect();
+        let mut leaders = BTreeMap::<u32, String>::new();
+
+        for (line_number, raw_line) in text.lines().enumerate() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
+                continue;
+            }
+            let Some((name, value)) = line.split_once('=') else {
+                continue;
+            };
+            let address_text = value
+                .trim()
+                .split(|character: char| character.is_whitespace() || character == ';')
+                .next()
+                .unwrap_or("");
+            let address_text = address_text
+                .strip_prefix("0x")
+                .or_else(|| address_text.strip_prefix("0X"))
+                .unwrap_or(address_text);
+            let address = u32::from_str_radix(address_text, 16).with_context(|| {
+                format!("invalid address on {}:{}", path.display(), line_number + 1)
+            })?;
+            if instruction_addresses.contains(&address) {
+                leaders
+                    .entry(address)
+                    .or_insert_with(|| name.trim().to_string());
+            }
+        }
+
+        let naive = Self::naive_function_discovery(entry, instructions);
+        for function in naive.functions {
+            leaders.entry(function.address).or_insert(function.name);
+        }
+        if instruction_addresses.contains(&entry) {
+            leaders.entry(entry).or_insert_with(|| "entry".to_string());
+        }
+
+        let starts: Vec<_> = leaders.keys().copied().collect();
+        let image_end = instructions
+            .iter()
+            .map(|instruction| instruction.address.saturating_add(4))
+            .max()
+            .unwrap_or(entry.saturating_add(4));
+        let functions = starts
+            .iter()
+            .enumerate()
+            .map(|(index, address)| {
+                let end = starts.get(index + 1).copied().unwrap_or(image_end);
+                FunctionInfo {
+                    address: *address,
+                    name: leaders[address].clone(),
+                    size: end.saturating_sub(*address).max(4),
+                    calling_convention: "default".to_string(),
+                    parameters: vec![],
+                    return_type: None,
+                    local_variables: vec![],
+                    basic_blocks: vec![],
+                }
+            })
+            .collect::<Vec<_>>();
+
+        log::info!(
+            "Symbol discovery: {} named/automatic functions from {}",
+            functions.len(),
+            path.display()
+        );
+        Ok(GhidraAnalysis {
+            functions,
+            symbols: vec![],
+            decompiled_code: std::collections::HashMap::new(),
+            instructions: std::collections::HashMap::new(),
+        })
     }
 }
 

@@ -1,47 +1,34 @@
 // XInput backend for Windows (Xbox controllers)
 #[cfg(target_os = "windows")]
-use crate::input::backends::{Backend, ControllerInfo, ControllerType, HatState, RawInput};
+use crate::input::backends::{Backend, ControllerInfo, RawInput};
 #[cfg(target_os = "windows")]
 use anyhow::Result;
 
 #[cfg(target_os = "windows")]
-pub struct XInputBackend {
-    controllers: Vec<bool>, // Track which controllers are connected
-}
+pub struct XInputBackend;
 
 #[cfg(target_os = "windows")]
 impl XInputBackend {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            controllers: vec![false; 4], // XInput supports up to 4 controllers
-        })
+        Ok(Self)
     }
 }
 
 #[cfg(target_os = "windows")]
 impl Backend for XInputBackend {
+    fn name(&self) -> &'static str {
+        "XInput"
+    }
+
     fn update(&mut self) -> Result<()> {
         // XInput state is queried on-demand
         Ok(())
     }
 
     fn enumerate_controllers(&mut self) -> Result<Vec<ControllerInfo>> {
-        let mut controllers = Vec::new();
-
-        // XInput supports 4 controllers (0-3)
-        for i in 0..4 {
-            // Check if controller is connected
-            // In a real implementation, would use winapi or xinput crate
-            controllers.push(ControllerInfo {
-                id: i,
-                name: format!("Xbox Controller {}", i + 1),
-                controller_type: ControllerType::Xbox,
-                button_count: 10,
-                axis_count: 6,
-            });
-        }
-
-        Ok(controllers)
+        // SDL owns XInput devices. Returning synthetic controllers here caused
+        // four disconnected pads to appear on every Windows system.
+        Ok(Vec::new())
     }
 
     fn get_input(&self, controller_id: usize) -> Result<RawInput> {

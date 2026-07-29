@@ -38,12 +38,12 @@ version = "0.0.1-alpha"
 edition = "2021"
 authors = ["Christopher Erleigh <christopher.erleigh@gmail.com>"]
 license = "CC0-1.0"
-repository = "https://github.com/KaiserGranatapfel/GameCubeRecompiled"
-homepage = "https://github.com/KaiserGranatapfel/GameCubeRecompiled"
+repository = "https://github.com/KakarottoCake/EclipseRecompiled"
+homepage = "https://github.com/KakarottoCake/EclipseRecompiled"
 documentation = "https://docs.rs/gcrecomp-core"
 keywords = ["gamecube", "recompiler", "powerpc", "rust", "emulation"]
 categories = ["development-tools", "emulators"]
-description = "Static recompiler for GameCube games to Rust"
+description = "Experimental Super Mario Eclipse static recompilation bring-up"
 
 [workspace.dependencies]
 # Core dependencies
@@ -90,4 +90,3 @@ zip = "2.2"
 
 # Compression
 zstd = "0.13"
-

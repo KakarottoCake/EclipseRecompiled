@@ -5,6 +5,8 @@
 //! recompiled games can load assets at runtime.
 
 use std::collections::HashMap;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::{Component, Path, PathBuf};
 
 use crate::runtime::memory::MemoryManager;
 
@@ -22,12 +24,53 @@ struct TocEntry {
 struct OpenFile {
     path: String,
     length: u32,
+    override_path: Option<PathBuf>,
 }
 
-/// Virtual filesystem backed by an embedded GCFS archive.
+enum ArchiveSource {
+    Embedded(&'static [u8]),
+    File { path: PathBuf, len: usize },
+}
+
+impl ArchiveSource {
+    fn len(&self) -> usize {
+        match self {
+            Self::Embedded(data) => data.len(),
+            Self::File { len, .. } => *len,
+        }
+    }
+
+    fn read_range(&self, offset: usize, length: usize) -> Result<Vec<u8>, String> {
+        let end = offset
+            .checked_add(length)
+            .ok_or_else(|| "GCFS archive range overflow".to_string())?;
+        if end > self.len() {
+            return Err(format!(
+                "GCFS archive range {}..{} exceeds {} bytes",
+                offset,
+                end,
+                self.len()
+            ));
+        }
+        match self {
+            Self::Embedded(data) => Ok(data[offset..end].to_vec()),
+            Self::File { path, .. } => {
+                let mut file = std::fs::File::open(path)
+                    .map_err(|error| format!("opening {}: {error}", path.display()))?;
+                file.seek(SeekFrom::Start(offset as u64))
+                    .map_err(|error| format!("seeking {}: {error}", path.display()))?;
+                let mut data = vec![0u8; length];
+                file.read_exact(&mut data)
+                    .map_err(|error| format!("reading {}: {error}", path.display()))?;
+                Ok(data)
+            }
+        }
+    }
+}
+
+/// Virtual filesystem backed by an embedded or external GCFS archive.
 pub struct VirtualFilesystem {
-    /// Raw archive bytes (a `&'static [u8]` from `include_bytes!`).
-    archive: &'static [u8],
+    archive: ArchiveSource,
     /// Path → TOC entry mapping.
     toc: HashMap<String, TocEntry>,
     /// Lazily decompressed file cache.
@@ -36,6 +79,8 @@ pub struct VirtualFilesystem {
     open_files: HashMap<u32, OpenFile>,
     /// Next handle ID to assign (starts at 1; 0 means failure).
     next_handle: u32,
+    /// Optional loose-file tree. Files here override matching disc files.
+    override_dir: Option<PathBuf>,
 }
 
 impl VirtualFilesystem {
@@ -51,35 +96,45 @@ impl VirtualFilesystem {
     pub fn new(archive: &'static [u8]) -> Result<Self, String> {
         if archive.is_empty() {
             return Ok(Self {
-                archive,
+                archive: ArchiveSource::Embedded(archive),
                 toc: HashMap::new(),
                 file_cache: HashMap::new(),
                 open_files: HashMap::new(),
                 next_handle: 1,
+                override_dir: override_directory(),
             });
         }
 
+        Self::from_source(ArchiveSource::Embedded(archive))
+    }
+
+    /// Open a GCFS archive without embedding its potentially multi-gigabyte
+    /// contents in the executable.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, String> {
+        let path = path.as_ref().to_path_buf();
+        let len = usize::try_from(
+            std::fs::metadata(&path)
+                .map_err(|error| format!("reading {} metadata: {error}", path.display()))?
+                .len(),
+        )
+        .map_err(|_| format!("archive {} is too large for this host", path.display()))?;
+        Self::from_source(ArchiveSource::File { path, len })
+    }
+
+    fn from_source(archive: ArchiveSource) -> Result<Self, String> {
         if archive.len() < 20 {
             return Err("GCFS archive too small for header.".to_string());
         }
 
-        if &archive[0..4] != b"GCFS" {
+        let header = archive.read_range(0, 20)?;
+        if &header[0..4] != b"GCFS" {
             return Err("Invalid GCFS magic.".to_string());
         }
 
-        let _version = u32::from_le_bytes([archive[4], archive[5], archive[6], archive[7]]);
+        let _version = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
         let file_count =
-            u32::from_le_bytes([archive[8], archive[9], archive[10], archive[11]]) as usize;
-        let toc_offset = u64::from_le_bytes([
-            archive[12],
-            archive[13],
-            archive[14],
-            archive[15],
-            archive[16],
-            archive[17],
-            archive[18],
-            archive[19],
-        ]) as usize;
+            u32::from_le_bytes([header[8], header[9], header[10], header[11]]) as usize;
+        let toc_offset = read_u64_le(&header, 12) as usize;
 
         if toc_offset > archive.len() {
             return Err(format!(
@@ -89,30 +144,31 @@ impl VirtualFilesystem {
             ));
         }
 
+        let toc_data = archive.read_range(toc_offset, archive.len() - toc_offset)?;
         let mut toc = HashMap::with_capacity(file_count);
-        let mut pos = toc_offset;
+        let mut pos = 0;
 
         for _ in 0..file_count {
-            if pos + 2 > archive.len() {
+            if pos + 2 > toc_data.len() {
                 return Err("GCFS TOC truncated (path_len).".to_string());
             }
-            let path_len = u16::from_le_bytes([archive[pos], archive[pos + 1]]) as usize;
+            let path_len = u16::from_le_bytes([toc_data[pos], toc_data[pos + 1]]) as usize;
             pos += 2;
 
-            if pos + path_len > archive.len() {
+            if pos + path_len > toc_data.len() {
                 return Err("GCFS TOC truncated (path).".to_string());
             }
-            let path = String::from_utf8_lossy(&archive[pos..pos + path_len]).into_owned();
+            let path = String::from_utf8_lossy(&toc_data[pos..pos + path_len]).into_owned();
             pos += path_len;
 
-            if pos + 24 > archive.len() {
+            if pos + 24 > toc_data.len() {
                 return Err("GCFS TOC truncated (offsets).".to_string());
             }
-            let data_offset = read_u64_le(archive, pos) as usize;
+            let data_offset = read_u64_le(&toc_data, pos) as usize;
             pos += 8;
-            let compressed_size = read_u64_le(archive, pos) as usize;
+            let compressed_size = read_u64_le(&toc_data, pos) as usize;
             pos += 8;
-            let decompressed_size = read_u64_le(archive, pos) as usize;
+            let decompressed_size = read_u64_le(&toc_data, pos) as usize;
             pos += 8;
 
             toc.insert(
@@ -136,6 +192,7 @@ impl VirtualFilesystem {
             file_cache: HashMap::new(),
             open_files: HashMap::new(),
             next_handle: 1,
+            override_dir: override_directory(),
         })
     }
 
@@ -145,6 +202,37 @@ impl VirtualFilesystem {
     /// We normalize by stripping a leading `/` if present.
     pub fn dvd_open(&mut self, path: &str) -> u32 {
         let normalized = path.strip_prefix('/').unwrap_or(path);
+
+        if let Some(override_path) = self
+            .override_dir
+            .as_ref()
+            .and_then(|root| safe_join(root, normalized))
+            .filter(|candidate| candidate.is_file())
+        {
+            match std::fs::metadata(&override_path) {
+                Ok(metadata) => {
+                    let handle = self.next_handle;
+                    self.next_handle += 1;
+                    self.open_files.insert(
+                        handle,
+                        OpenFile {
+                            path: normalized.replace('\\', "/"),
+                            length: metadata.len().min(u32::MAX as u64) as u32,
+                            override_path: Some(override_path.clone()),
+                        },
+                    );
+                    log::info!(
+                        "DVDOpen('{}') -> loose mod {}",
+                        path,
+                        override_path.display()
+                    );
+                    return handle;
+                }
+                Err(error) => {
+                    log::warn!("Could not inspect loose mod '{}': {error}", path);
+                }
+            }
+        }
 
         // Try exact match first, then case-insensitive
         let found = if self.toc.contains_key(normalized) {
@@ -160,8 +248,14 @@ impl VirtualFilesystem {
                 let length = entry.decompressed_size as u32;
                 let handle = self.next_handle;
                 self.next_handle += 1;
-                self.open_files
-                    .insert(handle, OpenFile { path: key, length });
+                self.open_files.insert(
+                    handle,
+                    OpenFile {
+                        path: key,
+                        length,
+                        override_path: None,
+                    },
+                );
                 log::debug!("DVDOpen('{}') -> handle {}", path, handle);
                 handle
             }
@@ -207,6 +301,15 @@ impl VirtualFilesystem {
             .ok_or_else(|| format!("DVDRead: invalid handle {}", handle))?;
 
         let path = file_info.path.clone();
+        if let Some(override_path) = file_info.override_path.as_ref() {
+            let file_data = std::fs::read(override_path).map_err(|error| {
+                format!(
+                    "DVDRead: failed to read loose mod '{}': {error}",
+                    override_path.display()
+                )
+            })?;
+            return copy_file_range(&file_data, memory, gc_addr, length, offset);
+        }
 
         // Decompress on first access
         if !self.file_cache.contains_key(&path) {
@@ -223,8 +326,10 @@ impl VirtualFilesystem {
                 ));
             }
 
-            let compressed = &self.archive[toc_entry.data_offset..compressed_end];
-            let decompressed = zstd::decode_all(compressed)
+            let compressed = self
+                .archive
+                .read_range(toc_entry.data_offset, toc_entry.compressed_size)?;
+            let decompressed = zstd::decode_all(compressed.as_slice())
                 .map_err(|e| format!("DVDRead: zstd decompression failed for '{}': {}", path, e))?;
 
             log::debug!(
@@ -236,19 +341,63 @@ impl VirtualFilesystem {
             self.file_cache.insert(path.clone(), decompressed);
         }
 
-        let file_data = &self.file_cache[&path];
-        let start = offset as usize;
-        let end = (start + length as usize).min(file_data.len());
-        if start >= file_data.len() {
-            return Ok(0);
+        copy_file_range(&self.file_cache[&path], memory, gc_addr, length, offset)
+    }
+}
+
+fn override_directory() -> Option<PathBuf> {
+    let path = std::env::var_os("GCRECOMP_MOD_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("mods").join("files"));
+    if path.is_dir() {
+        log::info!("Loose disc-file mods enabled from {}", path.display());
+        Some(path)
+    } else {
+        None
+    }
+}
+
+fn safe_join(root: &Path, relative: &str) -> Option<PathBuf> {
+    let mut output = root.to_path_buf();
+    for component in Path::new(relative).components() {
+        match component {
+            Component::Normal(part) => output.push(part),
+            Component::CurDir => {}
+            Component::RootDir | Component::ParentDir | Component::Prefix(_) => return None,
         }
+    }
+    Some(output)
+}
 
-        let slice = &file_data[start..end];
-        memory
-            .write_bytes(gc_addr, slice)
-            .map_err(|e| format!("DVDRead: memory write failed at 0x{:08X}: {}", gc_addr, e))?;
+fn copy_file_range(
+    file_data: &[u8],
+    memory: &mut MemoryManager,
+    gc_addr: u32,
+    length: u32,
+    offset: u32,
+) -> Result<u32, String> {
+    let start = offset as usize;
+    if start >= file_data.len() {
+        return Ok(0);
+    }
+    let end = start.saturating_add(length as usize).min(file_data.len());
+    let slice = &file_data[start..end];
+    memory
+        .write_bytes(gc_addr, slice)
+        .map_err(|error| format!("DVDRead: memory write failed at 0x{gc_addr:08X}: {error}"))?;
+    Ok(slice.len() as u32)
+}
 
-        Ok(slice.len() as u32)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loose_mod_paths_cannot_escape_their_root() {
+        let root = Path::new("mods/files");
+        assert!(safe_join(root, "scene/map.bmd").is_some());
+        assert!(safe_join(root, "../private.bin").is_none());
+        assert!(safe_join(root, "/absolute.bin").is_none());
     }
 }
 

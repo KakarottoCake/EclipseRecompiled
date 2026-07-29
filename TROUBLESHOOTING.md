@@ -168,7 +168,7 @@ xattr -d com.apple.quarantine target/release/gcrecomp-cli
 
 If you're still experiencing issues:
 
-1. **Check existing issues**: Search [GitHub Issues](https://github.com/yourusername/GCRecomp/issues) for similar problems
+1. **Check existing issues**: Search [GitHub Issues](https://github.com/KakarottoCake/EclipseRecompiled/issues) for similar problems
 2. **Check logs**: Enable verbose logging:
    ```bash
    RUST_LOG=debug cargo run --release --bin gcrecomp-cli -- [args]
@@ -216,4 +216,3 @@ For more help, see:
 - [INSTALL.md](INSTALL.md) - Installation guide
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Development information
 - [docs/](docs/) - Detailed documentation
-

@@ -1,6 +1,8 @@
 # Rust
 target/
+target-llvm/
 Cargo.lock
+*.log
 
 # Generated files
 game/src/recompiled.rs
@@ -29,3 +31,6 @@ Thumbs.db
 *.toml.bak
 
 recompiled/src/game_image.bin
+game/assets.bin
+eclipse/
+mods/files/
