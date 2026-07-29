@@ -168,6 +168,11 @@ fn test_mtctr_sets_ctr() {
 fn test_sanitize_identifier() {
     let codegen = CodeGenerator::new();
 
+    assert_eq!(codegen.sanitize_identifier(""), "function");
+    assert_eq!(
+        codegen.sanitize_identifier("123_example"),
+        "function_123_example"
+    );
     assert_eq!(
         codegen.sanitize_identifier("test_function"),
         "test_function"
@@ -184,4 +189,5 @@ fn test_sanitize_identifier() {
         codegen.sanitize_identifier("test function"),
         "test_function"
     );
+    assert_eq!(codegen.sanitize_identifier("@@@"), "function");
 }
