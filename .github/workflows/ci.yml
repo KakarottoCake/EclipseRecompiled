@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CMAKE_GENERATOR: Ninja
 
 jobs:
   source-and-runtime:
@@ -24,6 +25,14 @@ jobs:
 
       - name: Cache Rust build data
         uses: Swatinem/rust-cache@v2
+
+      - name: Install compatible CMake
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pin CMake for bundled SDL2
+        run: python -m pip install "cmake==3.31.6"
 
       - name: Check formatting
         run: cargo fmt --all -- --check
