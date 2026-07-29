@@ -1,0 +1,8 @@
+* text=auto
+
+# Rustfmt is configured for portable LF line endings. Force them even when a
+# contributor or CI runner checks the repository out on Windows.
+*.rs text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
