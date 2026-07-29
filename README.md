@@ -312,12 +312,18 @@ recompiled/          Placeholder for generated private game code
 mods/                Host Lua examples and ignored loose asset overrides
 scripts/             Windows bootstrap, build, launch, and diagnostics
 docs/ECLIPSE_PORT.md Technical bring-up notes and validated measurements
+docs/UPSTREAM_CONTRIBUTION_PLAN.md Scoped upstream PR and session handoff plan
 ```
 
 ## How to help
 
 Contributions are welcome, but this is currently a low-level runtime project,
 not a content-mod project. The most useful areas are:
+
+Reusable fixes are being prepared as small, game-independent upstream pull
+requests. See the
+[upstream contribution plan](docs/UPSTREAM_CONTRIBUTION_PLAN.md) for the
+proposed order, scope boundaries, and first task for a new work session.
 
 - GX command and shader behavior;
 - OS threads, interrupts, timers, and queues;
