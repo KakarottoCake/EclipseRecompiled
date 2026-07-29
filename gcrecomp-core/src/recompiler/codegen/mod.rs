@@ -1209,10 +1209,23 @@ impl CodeGenerator {
     }
 
     pub fn sanitize_identifier(&self, name: &str) -> String {
-        name.replace([' ', '-', '.'], "_")
+        let mut identifier: String = name
+            .replace([' ', '-', '.'], "_")
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '_')
-            .collect()
+            .collect();
+
+        if identifier.is_empty() {
+            identifier.push_str("function");
+        } else if identifier
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_numeric())
+        {
+            identifier.insert_str(0, "function_");
+        }
+
+        identifier
     }
 
     fn indent(&self) -> String {
