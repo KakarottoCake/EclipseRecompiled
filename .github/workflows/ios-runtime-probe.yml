@@ -1,0 +1,45 @@
+name: iOS Runtime Compatibility Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios-native]
+    paths:
+      - 'gcrecomp-runtime/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/ios-runtime-probe.yml'
+
+jobs:
+  runtime-probe:
+    name: Check game runtime for iPhone ARM64
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          rustc --version
+      - name: Diagnose legacy nix dependency for iOS
+        run: |
+          cargo tree -p gcrecomp-runtime --target aarch64-apple-ios -i nix@0.24.3 2>&1 | tee ios-nix-dependency.log
+        shell: bash
+      - name: Probe iOS runtime compatibility
+        run: |
+          cargo check -p gcrecomp-runtime --lib --target aarch64-apple-ios 2>&1 | tee ios-runtime-check.log
+          exit ${PIPESTATUS[0]}
+        shell: bash
+      - name: Upload diagnostic log even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-runtime-check-log
+          path: |
+            ios-runtime-check.log
+            ios-nix-dependency.log
+          if-no-files-found: warn

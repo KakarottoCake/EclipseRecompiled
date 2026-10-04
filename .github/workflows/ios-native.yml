@@ -1,0 +1,30 @@
+name: iOS Native Foundation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios-native]
+    paths:
+      - 'gcrecomp-core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/ios-native.yml'
+
+jobs:
+  ios-core:
+    name: Check PowerPC recompiler core for iPhone ARM64
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - name: Show Xcode and Rust environment
+        run: |
+          xcodebuild -version
+          rustc -Vv
+          rustup target list --installed
+      - name: Check recompiler core for native iOS
+        run: cargo check -p gcrecomp-core --lib --target aarch64-apple-ios
